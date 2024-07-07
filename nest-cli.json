@@ -1,10 +1,11 @@
 {
   "$schema": "https://json.schemastore.org/nest-cli",
   "collection": "@nestjs/schematics",
-  "sourceRoot": "src",
+  "sourceRoot": "apps/conversations/src",
   "compilerOptions": {
     "deleteOutDir": true,
-    "webpack": true
+    "webpack": true,
+    "tsConfigPath": "apps/conversations/tsconfig.app.json"
   },
   "projects": {
     "common": {
@@ -15,6 +16,17 @@
       "compilerOptions": {
         "tsConfigPath": "libs/common/tsconfig.lib.json"
       }
+    },
+    "conversations": {
+      "type": "application",
+      "root": "apps/conversations",
+      "entryFile": "main",
+      "sourceRoot": "apps/conversations/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/conversations/tsconfig.app.json"
+      }
     }
-  }
+  },
+  "monorepo": true,
+  "root": "apps/conversations"
 }
