@@ -1,8 +1,8 @@
-import { AbstractRepository } from '@app/common/database/abstract.repository';
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { ConversationDocument } from './models/conversation.schema';
+import { AbstractRepository } from '@app/common';
 
 @Injectable()
 export class ConversationsRepository extends AbstractRepository<ConversationDocument> {
