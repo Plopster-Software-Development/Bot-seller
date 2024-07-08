@@ -8,6 +8,7 @@ import {
   ConversationDocument,
   ConversationSchema,
 } from './models/conversation.schema';
+import { ConversationsRepository } from './conversations.repository';
 
 @Module({
   imports: [
@@ -18,14 +19,16 @@ import {
     LoggerModule,
     ConfigModule.forRoot({
       isGlobal: true,
+      envFilePath: 'apps/conversations/.env',
       validationSchema: Joi.object({
         MONGODB_URI: Joi.string().required(),
+        HOST: Joi.string().required(),
         PORT: Joi.number().required(),
       }),
     }),
     ConversationsModule,
   ],
   controllers: [ConversationsController],
-  providers: [ConversationsService],
+  providers: [ConversationsService, ConversationsRepository],
 })
 export class ConversationsModule {}
