@@ -1,26 +1,38 @@
 import { Injectable } from '@nestjs/common';
 import { CreateConversationDto } from './dto/create-conversation.dto';
 import { UpdateConversationDto } from './dto/update-conversation.dto';
+import { ConversationsRepository } from './conversations.repository';
 
 @Injectable()
 export class ConversationsService {
+  constructor(
+    private readonly conversationsRepository: ConversationsRepository,
+  ) {}
+
   create(createConversationDto: CreateConversationDto) {
-    return 'This action adds a new conversation';
+    return this.conversationsRepository.create({
+      ...createConversationDto,
+      timestamp: new Date(),
+      userId: '123',
+    });
   }
 
   findAll() {
-    return `This action returns all conversations`;
+    return this.conversationsRepository.find({});
   }
 
-  findOne(id: number) {
-    return `This action returns a #${id} conversation`;
+  findOne(_id: string) {
+    return this.conversationsRepository.findOne({ _id });
   }
 
-  update(id: number, updateConversationDto: UpdateConversationDto) {
-    return `This action updates a #${id} conversation`;
+  update(_id: string, updateConversationDto: UpdateConversationDto) {
+    return this.conversationsRepository.findOneAndUpdate(
+      { _id },
+      { $set: updateConversationDto },
+    );
   }
 
-  remove(id: number) {
-    return `This action removes a #${id} conversation`;
+  remove(_id: string) {
+    return this.conversationsRepository.findOneAndDelete({ _id });
   }
 }
