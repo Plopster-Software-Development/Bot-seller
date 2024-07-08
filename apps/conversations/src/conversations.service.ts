@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
+import { ConversationsRepository } from './conversations.repository';
 import { CreateConversationDto } from './dto/create-conversation.dto';
 import { UpdateConversationDto } from './dto/update-conversation.dto';
-import { ConversationsRepository } from './conversations.repository';
 
 @Injectable()
 export class ConversationsService {

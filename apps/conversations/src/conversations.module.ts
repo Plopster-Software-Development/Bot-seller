@@ -23,6 +23,7 @@ import {
         PORT: Joi.number().required(),
       }),
     }),
+    ConversationsModule,
   ],
   controllers: [ConversationsController],
   providers: [ConversationsService],
