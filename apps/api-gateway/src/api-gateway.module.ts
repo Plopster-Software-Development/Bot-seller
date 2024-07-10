@@ -14,6 +14,7 @@ import * as Joi from 'joi';
       envFilePath: 'apps/api-gateway/.env',
       validationSchema: Joi.object({
         API_GATEWAY_PORT: Joi.number().required(),
+        CONVERSATIONS_HOST: Joi.string().required(),
         CONVERSATIONS_PORT: Joi.number().required(),
       }),
     }),
