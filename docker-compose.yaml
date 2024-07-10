@@ -1,3 +1,5 @@
+version: '3.8'
+
 services:
   api-gateway:
     build:
@@ -14,6 +16,7 @@ services:
       - /usr/src/app/node_modules    
     depends_on:
       - conversations
+
   conversations:
     build:
       context: .
@@ -27,6 +30,22 @@ services:
     volumes:
       - .:/usr/src/app
       - /usr/src/app/node_modules
+
+  whatsapp-webhook:
+    build: 
+      context: .
+      dockerfile: ./apps/whatsapp-webhook/Dockerfile
+      target: development
+    command: yarn run start:dev whatsapp-webhook
+    ports:
+      - "3002:3002"
+    environment:
+      - GOOGLE_APPLICATION_CREDENTIALS=/storage/creds/credentials.json
+    volumes:
+      - .:/usr/src/app
+      - /usr/src/app/node_modules
+      - ./apps/whatsapp-webhook/storage/credentials.json:/storage/creds/credentials.json
+
   mongo:
     image: mongo
     ports:
