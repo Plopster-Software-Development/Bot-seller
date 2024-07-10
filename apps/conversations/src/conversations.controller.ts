@@ -10,7 +10,7 @@ import { delay } from 'rxjs/operators';
 export class ConversationsController {
   constructor(private readonly conversationsService: ConversationsService) {}
 
-  @MessagePattern({ cmd: 'ping' })
+  @MessagePattern('ping')
   ping() {
     return of('pong').pipe(delay(1000));
   }

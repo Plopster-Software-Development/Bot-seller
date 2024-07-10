@@ -3,7 +3,6 @@ FROM node:alpine AS development
 WORKDIR /usr/src/app
 
 COPY package.json ./
-# COPY yarn.lock ./
 
 RUN yarn install
 
@@ -25,5 +24,5 @@ RUN yarn install --production
 
 COPY --from=development /usr/src/app/dist ./dist
 
-CMD ["node", "dist/apps/conversations/main"]
+CMD ["node", "dist/apps/api-gateway/main"]
 

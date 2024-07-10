@@ -19,10 +19,8 @@ import { ConversationsRepository } from './conversations.repository';
     LoggerModule,
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: 'apps/conversations/.env',
       validationSchema: Joi.object({
         MONGODB_URI: Joi.string().required(),
-        HOST: Joi.string().required(),
         PORT: Joi.number().required(),
       }),
     }),
