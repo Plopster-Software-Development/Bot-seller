@@ -3,7 +3,7 @@ import { WebhookDto } from './dto/webhook.dto';
 import dialogflow from '@google-cloud/dialogflow';
 
 @Injectable()
-export class WhatsappWebhookService {
+export class WebhookService {
   private readonly dialogflowClient: any;
 
   constructor() {
@@ -22,7 +22,7 @@ export class WhatsappWebhookService {
       session: sessionPath,
       queryInput: {
         text: {
-          text: webhookDto.message,
+          text: webhookDto.entry,
           languageCode: 'en-US',
         },
       },
@@ -31,7 +31,6 @@ export class WhatsappWebhookService {
     const responses = await this.dialogflowClient.detectIntent(request);
     const result = responses[0].queryResult;
 
-    // Aquí puedes manejar la respuesta de Dialogflow según tus necesidades
     return { response: result.fulfillmentText };
   }
 }

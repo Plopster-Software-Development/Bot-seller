@@ -35,13 +35,13 @@
         "tsConfigPath": "apps/api-gateway/tsconfig.app.json"
       }
     },
-    "whatsapp-webhook": {
+    "webhook": {
       "type": "application",
-      "root": "apps/whatsapp-webhook",
+      "root": "apps/webhook",
       "entryFile": "main",
-      "sourceRoot": "apps/whatsapp-webhook/src",
+      "sourceRoot": "apps/webhook/src",
       "compilerOptions": {
-        "tsConfigPath": "apps/whatsapp-webhook/tsconfig.app.json"
+        "tsConfigPath": "apps/webhook/tsconfig.app.json"
       }
     }
   },
