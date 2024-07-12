@@ -1,4 +1,9 @@
 services:
+  mongo:
+    image: mongo
+    ports:
+      - '27017:27017'
+      
   webhook:
     build: 
       context: .
@@ -8,10 +13,11 @@ services:
     env_file:
       - ./apps/webhook/.env
     ports:
-      - '3004:3000'
+      - '3000:3000'
     volumes:
-      - .:/usr/src/app
-      - /usr/src/app/node_modules
+      - ./apps/webhook:/usr/src/app
+    depends_on:
+      - mongo
 
   api-gateway:
     build:
@@ -24,11 +30,10 @@ services:
     ports: 
       - '3001:3001'
     volumes:
-      - .:/usr/src/app
-      - /usr/src/app/node_modules  
+      - ./apps/api-gateway:/usr/src/app
     depends_on:
-      - conversations  
-
+      - webhook
+      
   conversations:
     build:
       context: .
@@ -40,10 +45,6 @@ services:
     ports: 
       - '3002:3002'
     volumes:
-      - .:/usr/src/app
-      - /usr/src/app/node_modules
-      
-  mongo:
-    image: mongo
-    ports:
-      - '8001:27017'
+      - ./apps/conversations:/usr/src/app
+    depends_on:
+      - api-gateway

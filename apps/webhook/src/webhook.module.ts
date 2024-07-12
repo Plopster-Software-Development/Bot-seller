@@ -11,9 +11,10 @@ import { HttpModule } from '@nestjs/axios';
     LoggerModule,
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: 'apps/webhook/.env',
       validationSchema: Joi.object({
         GOOGLE_APPLICATION_CREDENTIALS: Joi.string().required(),
+        WEBHOOK_VERIFY_TOKEN: Joi.string().required(),
+        FACEBOOK_GRAPH_API_TK: Joi.string().required(),
         PORT: Joi.number().required(),
       }),
     }),
