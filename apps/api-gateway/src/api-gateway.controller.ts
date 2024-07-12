@@ -1,5 +1,6 @@
-import { Controller, Get } from '@nestjs/common';
+import { Body, Controller, Get, Post } from '@nestjs/common';
 import { ApiGatewayService } from './api-gateway.service';
+import { RequestDTO } from './dto/dialogflow-request.dto';
 
 @Controller('api')
 export class ApiGatewayController {
@@ -8,5 +9,10 @@ export class ApiGatewayController {
   @Get('/ping-conversations')
   pingConversations() {
     return this.apiGatewayService.pingConversations();
+  }
+
+  @Post('conversations')
+  conversationsManager(@Body() apiGatewayDto?: RequestDTO) {
+    return this.apiGatewayService.conversationsManager(apiGatewayDto);
   }
 }

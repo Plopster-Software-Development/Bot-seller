@@ -2,6 +2,7 @@ import { CONVERSATIONS_SERVICE } from '@app/common';
 import { Inject, Injectable } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
 import { map } from 'rxjs';
+import { RequestDTO } from './dto/dialogflow-request.dto';
 
 @Injectable()
 export class ApiGatewayService {
@@ -17,5 +18,11 @@ export class ApiGatewayService {
       .pipe(
         map((message: string) => ({ message, duration: Date.now() - startTs })),
       );
+  }
+
+  conversationsManager(apiGatewayDto?: RequestDTO) {
+    return this.conversationService
+      .send<any>('conversationsManager', apiGatewayDto)
+      .pipe(map((response: any) => response.data));
   }
 }

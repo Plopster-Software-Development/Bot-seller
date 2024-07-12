@@ -3,7 +3,7 @@ services:
     image: mongo
     ports:
       - '27017:27017'
-      
+
   webhook:
     build: 
       context: .
@@ -15,7 +15,7 @@ services:
     ports:
       - '3000:3000'
     volumes:
-      - ./apps/webhook:/usr/src/app
+      - .:/usr/src/app
     depends_on:
       - mongo
 
@@ -30,7 +30,7 @@ services:
     ports: 
       - '3001:3001'
     volumes:
-      - ./apps/api-gateway:/usr/src/app
+      - .:/usr/src/app
     depends_on:
       - webhook
       
@@ -45,6 +45,6 @@ services:
     ports: 
       - '3002:3002'
     volumes:
-      - ./apps/conversations:/usr/src/app
+      - .:/usr/src/app
     depends_on:
       - api-gateway
