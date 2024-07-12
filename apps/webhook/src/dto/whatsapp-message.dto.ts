@@ -15,6 +15,21 @@ class ContactDto {
   wa_id?: string;
 }
 
+class AudioDTO {
+  @IsString()
+  mime_type: string;
+
+  @IsString()
+  sha256: string;
+
+  @IsString()
+  id: string;
+
+  @IsOptional()
+  @IsString()
+  voice?: boolean;
+}
+
 class TextDto {
   @IsString()
   body?: string;
@@ -22,20 +37,22 @@ class TextDto {
 
 class MessageDto {
   @IsString()
-  from?: string;
+  from: string;
 
   @IsString()
-  id?: string;
+  id: string;
 
   @IsString()
-  timestamp?: string;
+  timestamp: string;
+
+  @IsString()
+  type: string;
+
+  audio?: any;
 
   @ValidateNested()
   @Type(() => TextDto)
   text?: TextDto;
-
-  @IsString()
-  type?: string;
 }
 
 class MetadataDto {
@@ -46,7 +63,7 @@ class MetadataDto {
   phone_number_id?: string;
 }
 
-class ValueDto {
+export class ValueDto {
   @IsString()
   messaging_product?: string;
 
@@ -65,7 +82,7 @@ class ValueDto {
   messages?: MessageDto[];
 }
 
-class ChangesDto {
+export class ChangesDto {
   @ValidateNested()
   @Type(() => ValueDto)
   value?: ValueDto;
@@ -83,7 +100,7 @@ class EntryDto {
   changes?: ChangesDto[];
 }
 
-export class WebhookDto {
+export class WhatsappMessageDTO {
   @IsString()
   @IsOptional()
   object?: string;
