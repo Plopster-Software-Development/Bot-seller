@@ -1,46 +1,94 @@
-import { IsString, ValidateNested } from 'class-validator';
+import { IsOptional, IsString, ValidateNested, IsArray } from 'class-validator';
 import { Type } from 'class-transformer';
+
+class ProfileDto {
+  @IsString()
+  name?: string;
+}
+
+class ContactDto {
+  @ValidateNested()
+  @Type(() => ProfileDto)
+  profile?: ProfileDto;
+
+  @IsString()
+  wa_id?: string;
+}
+
+class TextDto {
+  @IsString()
+  body?: string;
+}
+
+class MessageDto {
+  @IsString()
+  from?: string;
+
+  @IsString()
+  id?: string;
+
+  @IsString()
+  timestamp?: string;
+
+  @ValidateNested()
+  @Type(() => TextDto)
+  text?: TextDto;
+
+  @IsString()
+  type?: string;
+}
 
 class MetadataDto {
   @IsString()
-  display_phone_number: string;
+  display_phone_number?: string;
 
   @IsString()
-  phone_number_id: string;
+  phone_number_id?: string;
 }
 
 class ValueDto {
   @IsString()
-  messaging_product: string;
+  messaging_product?: string;
 
   @ValidateNested()
   @Type(() => MetadataDto)
-  metadata: MetadataDto;
+  metadata?: MetadataDto;
+
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ContactDto)
+  contacts?: ContactDto[];
+
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => MessageDto)
+  messages?: MessageDto[];
 }
 
 class ChangesDto {
   @ValidateNested()
   @Type(() => ValueDto)
-  value: ValueDto;
+  value?: ValueDto;
 
   @IsString()
-  field: string;
+  field?: string;
 }
 
 class EntryDto {
   @IsString()
-  id: string;
+  id?: string;
 
   @ValidateNested({ each: true })
   @Type(() => ChangesDto)
-  changes: ChangesDto[];
+  changes?: ChangesDto[];
 }
 
 export class WebhookDto {
   @IsString()
-  object: string;
+  @IsOptional()
+  object?: string;
 
   @ValidateNested({ each: true })
   @Type(() => EntryDto)
-  entry: EntryDto[];
+  entry?: EntryDto[];
 }
