@@ -16,8 +16,7 @@ services:
       - '3000:3000'
     volumes:
       - .:/usr/src/app
-    depends_on:
-      - mongo
+    restart: unless-stopped
 
   api-gateway:
     build:
@@ -33,6 +32,7 @@ services:
       - .:/usr/src/app
     depends_on:
       - webhook
+    restart: unless-stopped
       
   conversations:
     build:
@@ -48,3 +48,4 @@ services:
       - .:/usr/src/app
     depends_on:
       - api-gateway
+    restart: unless-stopped

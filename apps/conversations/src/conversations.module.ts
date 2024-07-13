@@ -4,16 +4,18 @@ import { ConversationsController } from './conversations.controller';
 import * as Joi from 'joi';
 import { DatabaseModule, LoggerModule } from '@app/common';
 import { ConfigModule } from '@nestjs/config';
+import { ConversationsRepository } from './conversations.repository';
+import { ClientDocument, ClientSchema } from './models/client.schema';
 import {
   ConversationDocument,
   ConversationSchema,
 } from './models/conversation.schema';
-import { ConversationsRepository } from './conversations.repository';
 
 @Module({
   imports: [
     DatabaseModule,
     DatabaseModule.forFeature([
+      { name: ClientDocument.name, schema: ClientSchema },
       { name: ConversationDocument.name, schema: ConversationSchema },
     ]),
     LoggerModule,

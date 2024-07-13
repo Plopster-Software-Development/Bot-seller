@@ -15,21 +15,6 @@ class ContactDto {
   wa_id?: string;
 }
 
-class AudioDTO {
-  @IsString()
-  mime_type: string;
-
-  @IsString()
-  sha256: string;
-
-  @IsString()
-  id: string;
-
-  @IsOptional()
-  @IsString()
-  voice?: boolean;
-}
-
 class TextDto {
   @IsString()
   body?: string;

@@ -1,13 +1,15 @@
 import { Controller } from '@nestjs/common';
 import { MessagePattern, Payload } from '@nestjs/microservices';
 import { ConversationsService } from './conversations.service';
-import { RequestDTO } from './dto/create-conversation.dto';
 import { of } from 'rxjs';
 import { delay } from 'rxjs/operators';
+// import { RequestDTO } from './dto/dialogflow-request.dto';
 
 @Controller()
 export class ConversationsController {
-  constructor(private readonly conversationsService: ConversationsService) {}
+  constructor(private readonly conversationsService: ConversationsService) {
+    console.log('test');
+  }
 
   @MessagePattern('ping')
   ping() {
@@ -15,8 +17,9 @@ export class ConversationsController {
   }
 
   @MessagePattern('conversationsManager')
-  conversationsManager(@Payload() conversationRequestDto: RequestDTO) {
-    console.log(`conversationsManager ${conversationRequestDto}`);
-    // return this.conversationsService.create(createConversationDto);
+  conversationsManager(@Payload() conversationRequestDto: any) {
+    console.log(
+      `conversationsManager => ${JSON.stringify(conversationRequestDto)}`,
+    );
   }
 }

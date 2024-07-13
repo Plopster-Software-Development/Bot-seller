@@ -9,6 +9,9 @@ import { ConfigService } from '@nestjs/config';
 import { HttpService } from '@nestjs/axios';
 import { lastValueFrom } from 'rxjs';
 import { ChangesDto, ValueDto, WhatsappMessageDTO } from './dto';
+import { ConversationsRepository } from './repository/conversations.repository';
+import { ClientsRepository } from './repository/clients.repository';
+import { CreateClientDto } from './dto/create-client.dto';
 
 @Injectable()
 export class WebhookService {
@@ -18,6 +21,8 @@ export class WebhookService {
   constructor(
     private readonly configService: ConfigService,
     private readonly httpService: HttpService,
+    private readonly conversationRepository: ConversationsRepository,
+    private readonly clientsRepository: ClientsRepository,
   ) {
     const credentialsPath = this.configService.get(
       'GOOGLE_APPLICATION_CREDENTIALS',
@@ -55,6 +60,17 @@ export class WebhookService {
       if (!conversationChanges) {
         return;
       }
+
+      //todo: Must create a record for a new user if it doens't exists, if it exists, must get the userID.
+      await this.createUserRecord({
+        alias: conversationChanges.value.contacts[0].profile.name,
+        name: '',
+        email: '',
+        phone: conversationChanges.value.contacts[0].wa_id,
+        registerDate: new Date(),
+      });
+
+      //todo: Must create a record for a new conversation if there's no conversation alive for the user, if theres a conversation alive, it just have to get de conversationID with the userID.
 
       const dialogFlowResponse: any = await this.chatBotMessageProcedure(
         conversationChanges.value,
@@ -123,6 +139,7 @@ export class WebhookService {
 
     const projectId = await this.dialogflowClient.getProjectId();
 
+    //todo: We have to change the 'test' word with the conversationID.
     const sessionPath = this.dialogflowClient.projectAgentSessionPath(
       projectId,
       'test',
@@ -178,5 +195,11 @@ export class WebhookService {
         'Failed to send message via WhatsApp',
       );
     }
+  }
+
+  async createUserRecord(createClientDto: CreateClientDto) {
+    const user = this.clientsRepository.create({ ...createClientDto });
+
+    console.log(`User document ==> ${JSON.stringify(user)}`);
   }
 }
