@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Logger, Module } from '@nestjs/common';
 import { WebhookController } from './webhook.controller';
 import { WebhookService } from './webhook.service';
 import { DatabaseModule, LoggerModule } from '@app/common';
@@ -35,6 +35,11 @@ import {
     HttpModule,
   ],
   controllers: [WebhookController],
-  providers: [WebhookService, ClientsRepository, ConversationsRepository],
+  providers: [
+    WebhookService,
+    ClientsRepository,
+    ConversationsRepository,
+    Logger,
+  ],
 })
 export class WebhookModule {}

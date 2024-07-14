@@ -1,8 +1,11 @@
 import {
   BadRequestException,
   ForbiddenException,
+  GoneException,
   Injectable,
   InternalServerErrorException,
+  Logger,
+  NotFoundException,
 } from '@nestjs/common';
 import dialogflow from '@google-cloud/dialogflow';
 import { ConfigService } from '@nestjs/config';
@@ -11,18 +14,20 @@ import { lastValueFrom } from 'rxjs';
 import { ChangesDto, ValueDto, WhatsappMessageDTO } from './dto';
 import { ConversationsRepository } from './repository/conversations.repository';
 import { ClientsRepository } from './repository/clients.repository';
-import { CreateClientDto } from './dto/create-client.dto';
+import { Types } from 'mongoose';
+import { ConversationDocument } from './models/conversation.schema';
 
 @Injectable()
 export class WebhookService {
   private readonly dialogflowClient: any;
-  private readonly validMessageTypes: any;
+  private conversationChanges: ChangesDto;
 
   constructor(
     private readonly configService: ConfigService,
     private readonly httpService: HttpService,
     private readonly conversationRepository: ConversationsRepository,
     private readonly clientsRepository: ClientsRepository,
+    private readonly logger: Logger,
   ) {
     const credentialsPath = this.configService.get(
       'GOOGLE_APPLICATION_CREDENTIALS',
@@ -31,17 +36,6 @@ export class WebhookService {
     this.dialogflowClient = new dialogflow.SessionsClient({
       keyFilename: credentialsPath,
     });
-
-    this.validMessageTypes = {
-      active: {
-        text: {
-          processable: true,
-        },
-        audio: {
-          processable: false,
-        },
-      },
-    };
   }
 
   async whatsappProcessMessage(
@@ -50,51 +44,266 @@ export class WebhookService {
   ) {
     try {
       const challengeResponse = this.webhookVerification(queryParams);
-
       if (challengeResponse) {
         return challengeResponse;
       }
 
-      const conversationChanges = this.validateRequestStructure(webhookDto);
-
-      if (!conversationChanges) {
+      this.conversationChanges = this.validateRequestStructure(webhookDto);
+      if (!this.conversationChanges) {
         return;
       }
 
-      //todo: Must create a record for a new user if it doens't exists, if it exists, must get the userID.
-      await this.createUserRecord({
-        alias: conversationChanges.value.contacts[0].profile.name,
-        name: '',
-        email: '',
-        phone: conversationChanges.value.contacts[0].wa_id,
-        registerDate: new Date(),
-      });
+      const userId = await this.findOrCreateUser();
 
-      //todo: Must create a record for a new conversation if there's no conversation alive for the user, if theres a conversation alive, it just have to get de conversationID with the userID.
-
-      const dialogFlowResponse: any = await this.chatBotMessageProcedure(
-        conversationChanges.value,
-        conversationChanges.field,
+      const conversationId = await this.findOrCreateConversation(
+        userId,
+        this.conversationChanges,
       );
 
-      await this.sendMessageWPP(
-        conversationChanges.value.metadata.phone_number_id,
-        conversationChanges.value.contacts[0].wa_id,
+      if (conversationId.found) {
+        await this.updateConversation(
+          conversationId._id,
+          this.conversationChanges,
+          null,
+          'user',
+        );
+      }
+
+      const dialogFlowResponse = await this.processDialogFlowMessage(
+        this.conversationChanges,
+        conversationId._id.toString(),
+      );
+
+      await this.updateConversation(
+        conversationId._id,
+        this.conversationChanges,
+        dialogFlowResponse.fulfillmentText,
+        'bot',
+      );
+
+      await this.sendWhatsAppMessage(
+        this.conversationChanges.value.metadata.phone_number_id,
+        this.conversationChanges.value.contacts[0].wa_id,
         dialogFlowResponse.fulfillmentText,
       );
     } catch (error) {
-      if (error.response?.status === 403) {
-        throw new ForbiddenException('Access denied');
+      this.handleError(error);
+    }
+  }
+
+  private async findOrCreateUser(): Promise<Types.ObjectId> {
+    try {
+      let user = await this.clientsRepository.findOne({
+        phone: this.conversationChanges.value.contacts[0].wa_id,
+      });
+
+      if (!user) {
+        user = await this.clientsRepository.create({
+          alias: this.conversationChanges.value.contacts[0].profile.name,
+          name: '',
+          email: '',
+          phone: this.conversationChanges.value.contacts[0].wa_id,
+          registerDate: new Date(),
+        });
+      }
+      return user._id;
+    } catch (error) {
+      throw new InternalServerErrorException('Failed to find or create user');
+    }
+  }
+
+  private async findOrCreateConversation(
+    userId: Types.ObjectId,
+    conversationChanges: ChangesDto,
+  ): Promise<{ found: boolean; _id: Types.ObjectId }> {
+    try {
+      const conversation = await this.conversationRepository.findOne({
+        clientId: userId,
+      });
+
+      //Todo: si cuando se vayan a cumplir las 24 horas el chat sigue mandando mensajes se resetea el tiempo de vida del chat.
+      if (this.isConversationExpired(conversation)) {
+        throw new GoneException('Conversation Expired.');
+      }
+
+      return {
+        found: true,
+        _id: conversation._id,
+      };
+    } catch (error) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof GoneException
+      ) {
+        const conversationId = await this.createConversation(
+          userId,
+          conversationChanges,
+        );
+        return { found: false, _id: conversationId };
       }
       throw error;
     }
   }
 
-  webhookVerification(queryParams?: Record<string, string>) {
-    const mode = queryParams['hub.mode'];
-    const challenge = queryParams['hub.challenge'];
-    const verifyToken = queryParams['hub.verify_token'];
+  private async createConversation(
+    userId: Types.ObjectId,
+    conversationChanges: ChangesDto,
+  ): Promise<Types.ObjectId> {
+    const messageTimestamp = parseInt(
+      conversationChanges.value.messages[0].timestamp,
+    );
+    try {
+      const newConversation = await this.conversationRepository.create({
+        clientId: userId,
+        startDate: new Date(messageTimestamp * 1000),
+        endDate: null,
+        message: [
+          {
+            messageId: new Types.ObjectId(),
+            timestamp: new Date(messageTimestamp * 1000),
+            author: 'user',
+            content: conversationChanges.value.messages[0].text.body,
+          },
+        ],
+      });
+      return newConversation._id;
+    } catch (error) {
+      throw new InternalServerErrorException('Failed to create conversation');
+    }
+  }
 
+  private async processDialogFlowMessage(
+    conversationChanges: ChangesDto,
+    sessionId: string,
+  ) {
+    try {
+      const sessionPath = this.dialogflowClient.projectAgentSessionPath(
+        await this.dialogflowClient.getProjectId(),
+        sessionId,
+      );
+
+      const request = {
+        session: sessionPath,
+        queryInput: {
+          text: {
+            text: conversationChanges.value.messages[0].text.body,
+            languageCode: 'en-US',
+          },
+        },
+      };
+
+      const responses = await this.dialogflowClient.detectIntent(request);
+      return responses[0].queryResult;
+    } catch (error) {
+      throw new InternalServerErrorException(
+        'Failed to process Dialogflow message',
+      );
+    }
+  }
+
+  private async updateConversation(
+    conversationId: Types.ObjectId,
+    conversationChanges: ChangesDto,
+    message: string | null,
+    author: string,
+  ) {
+    try {
+      const messageTimestamp = parseInt(
+        conversationChanges.value.messages[0].timestamp,
+      );
+      await this.conversationRepository.findOneAndUpdate(
+        { _id: conversationId },
+        {
+          $push: {
+            message: {
+              messageId: new Types.ObjectId(),
+              timestamp: new Date(messageTimestamp * 1000),
+              author: author,
+              content:
+                message ?? conversationChanges.value.messages[0].text.body,
+            },
+          },
+        },
+      );
+    } catch (error) {
+      throw new InternalServerErrorException(
+        'Failed to update conversation with bot message',
+      );
+    }
+  }
+
+  private async sendWhatsAppMessage(
+    botPhoneNumberId: string,
+    customerPhoneNo: string,
+    customerMessage: string,
+  ) {
+    try {
+      const requestData = {
+        messaging_product: 'whatsapp',
+        to: customerPhoneNo,
+        text: { body: customerMessage },
+      };
+
+      const headers = {
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${this.configService.get('FACEBOOK_GRAPH_API_TK')}`,
+        },
+      };
+
+      const whatsAppResponse = await lastValueFrom(
+        this.httpService.post(
+          `https://graph.facebook.com/v19.0/${botPhoneNumberId}/messages`,
+          requestData,
+          headers,
+        ),
+      );
+
+      this.logger.log(
+        `WhatsApp Response: ${JSON.stringify(whatsAppResponse.data)}`,
+      );
+    } catch (error) {
+      throw new InternalServerErrorException(
+        'Failed to send message via WhatsApp',
+      );
+    }
+  }
+
+  private isConversationAlive(startDate: Date): boolean {
+    const MILLISECONDS_IN_A_DAY = 24 * 60 * 60 * 1000;
+    const timeDifference = Math.abs(startDate.getTime() - Date.now());
+    return timeDifference <= MILLISECONDS_IN_A_DAY;
+  }
+
+  private async expireConversation(conversationId: Types.ObjectId) {
+    try {
+      await this.conversationRepository.findOneAndUpdate(
+        { _id: conversationId },
+        { endDate: Date.now() },
+      );
+    } catch (error) {
+      throw new InternalServerErrorException('Failed to expire conversation');
+    }
+  }
+
+  private handleError(error: Error) {
+    if (
+      error instanceof BadRequestException ||
+      error instanceof ForbiddenException ||
+      error instanceof GoneException ||
+      error instanceof InternalServerErrorException ||
+      error instanceof NotFoundException
+    ) {
+      throw error;
+    }
+    this.logger.error(`Unexpected error: ${error.message}`, error.stack);
+    throw new InternalServerErrorException('Unexpected error occurred');
+  }
+
+  private webhookVerification(queryParams?: Record<string, string>): string {
+    const mode = queryParams?.['hub.mode'];
+    const challenge = queryParams?.['hub.challenge'];
+    const verifyToken = queryParams?.['hub.verify_token'];
     const webhookVerifyToken = this.configService.get('WEBHOOK_VERIFY_TOKEN');
 
     if (mode && verifyToken) {
@@ -105,101 +314,53 @@ export class WebhookService {
     }
   }
 
-  validateRequestStructure(webhookDto?: WhatsappMessageDTO): ChangesDto {
-    if (!webhookDto || webhookDto?.object !== 'whatsapp_business_account') {
+  private validateRequestStructure(
+    webhookDto?: WhatsappMessageDTO,
+  ): ChangesDto {
+    if (!webhookDto || webhookDto.object !== 'whatsapp_business_account') {
       throw new BadRequestException('Invalid request object');
     }
 
-    const conversationChanges = webhookDto?.entry?.[0]?.changes[0];
-
+    const conversationChanges = webhookDto.entry?.[0]?.changes?.[0];
     if (!conversationChanges) {
       throw new BadRequestException('Invalid webhook structure');
     }
 
-    const messageType = conversationChanges?.value?.messages?.[0]?.type;
-
+    const messageType = conversationChanges.value?.messages?.[0]?.type;
     if (messageType === 'audio') {
-      const conversationValues = conversationChanges.value;
-      const botPhoneNumberId = conversationValues.metadata.phone_number_id;
-      const customerPhoneNo = conversationValues.contacts[0].wa_id;
-      const customerName = conversationValues.contacts[0].profile.name;
-      const customerMessage = `${customerName}, I'm very sorry, I can't process audio messages yet. However, my creators are working hard on adding this functionality.`;
-
-      this.sendMessageWPP(botPhoneNumberId, customerPhoneNo, customerMessage);
-
-      return;
+      this.processAudioMessage(conversationChanges.value);
+      return null;
     }
+
     return conversationChanges;
   }
 
-  async chatBotMessageProcedure(conversationValues: ValueDto, field: string) {
-    if (!conversationValues && field !== 'messages') {
-      return;
-    }
+  private async processAudioMessage(conversationValues: ValueDto) {
+    const botPhoneNumberId = conversationValues.metadata.phone_number_id;
+    const customerPhoneNo = conversationValues.contacts[0].wa_id;
+    const customerName = conversationValues.contacts[0].profile.name;
+    const customerMessage = `${customerName}, I'm very sorry, I can't process audio messages yet. However, my creators are working hard on adding this functionality.`;
 
-    const projectId = await this.dialogflowClient.getProjectId();
-
-    //todo: We have to change the 'test' word with the conversationID.
-    const sessionPath = this.dialogflowClient.projectAgentSessionPath(
-      projectId,
-      'test',
+    await this.sendWhatsAppMessage(
+      botPhoneNumberId,
+      customerPhoneNo,
+      customerMessage,
     );
-
-    const request = {
-      session: sessionPath,
-      queryInput: {
-        text: {
-          text: conversationValues.messages[0].text.body,
-          languageCode: 'en-US',
-        },
-      },
-    };
-    const responses = await this.dialogflowClient.detectIntent(request);
-
-    return responses[0].queryResult;
   }
 
-  async sendMessageWPP(
-    botPhoneNumberId: string,
-    customerPhoneNo: string,
-    customerMessage: string,
-  ) {
-    try {
-      const requestData = {
-        messaging_product: 'whatsapp',
-        to: customerPhoneNo,
-        text: {
-          body: customerMessage,
-        },
-      };
-
-      const headers = {
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${this.configService.get('FACEBOOK_GRAPH_API_TK')}`,
-        },
-      };
-
-      const whatsAppResponse = this.httpService.post(
-        `https://graph.facebook.com/v19.0/${botPhoneNumberId}/messages`,
-        requestData,
-        headers,
-      );
-
-      const something = await lastValueFrom(whatsAppResponse);
-
-      console.log(`Response: ${JSON.stringify(something.data)}`);
-    } catch (error) {
-      console.error(`ERROR: ${error}`);
-      throw new InternalServerErrorException(
-        'Failed to send message via WhatsApp',
-      );
+  private isConversationExpired(conversation: ConversationDocument): boolean {
+    if (
+      !conversation.endDate &&
+      !this.isConversationAlive(conversation.startDate)
+    ) {
+      this.expireConversation(conversation._id);
+      return true;
     }
-  }
 
-  async createUserRecord(createClientDto: CreateClientDto) {
-    const user = this.clientsRepository.create({ ...createClientDto });
+    if (conversation.endDate) {
+      return true;
+    }
 
-    console.log(`User document ==> ${JSON.stringify(user)}`);
+    return false;
   }
 }

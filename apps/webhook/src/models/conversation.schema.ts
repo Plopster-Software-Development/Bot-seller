@@ -25,7 +25,7 @@ export class ConversationDocument extends AbstractDocument {
   @Prop({ required: true })
   startDate: Date;
 
-  @Prop()
+  @Prop({ required: false })
   endDate: Date;
 
   @Prop({ type: [Message], default: [] })
