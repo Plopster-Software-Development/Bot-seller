@@ -1,24 +1,22 @@
 import {
   BadRequestException,
   ForbiddenException,
-  GoneException,
   Injectable,
   InternalServerErrorException,
   Logger,
-  NotFoundException,
 } from '@nestjs/common';
-import dialogflow from '@google-cloud/dialogflow';
+import { ChangesDto, ValueDto, WhatsappMessageDTO } from '../../dto';
 import { ConfigService } from '@nestjs/config';
 import { HttpService } from '@nestjs/axios';
-import { lastValueFrom } from 'rxjs';
-import { ChangesDto, ValueDto, WhatsappMessageDTO } from './dto';
-import { ConversationsRepository } from './repository/conversations.repository';
-import { ClientsRepository } from './repository/clients.repository';
+import { ConversationsRepository } from '../../repository/conversations.repository';
+import { ClientsRepository } from '../../repository/clients.repository';
+import dialogflow from '@google-cloud/dialogflow';
 import { Types } from 'mongoose';
-import { ConversationDocument } from './models/conversation.schema';
+import { lastValueFrom } from 'rxjs';
+import { ConversationDocument } from '../../models/conversation.schema';
 
 @Injectable()
-export class WebhookService {
+export class WhatsappService {
   private readonly dialogflowClient: any;
   private conversationChanges: ChangesDto;
 
@@ -38,7 +36,7 @@ export class WebhookService {
     });
   }
 
-  async whatsappProcessMessage(
+  public async whatsappProcessMessage(
     queryParams?: Record<string, string>,
     webhookDto?: WhatsappMessageDTO,
   ) {
@@ -81,13 +79,13 @@ export class WebhookService {
         'bot',
       );
 
-      await this.sendWhatsAppMessage(
+      return await this.sendWhatsAppMessage(
         this.conversationChanges.value.metadata.phone_number_id,
         this.conversationChanges.value.contacts[0].wa_id,
         dialogFlowResponse.fulfillmentText,
       );
     } catch (error) {
-      this.handleError(error);
+      throw error;
     }
   }
 
@@ -106,6 +104,7 @@ export class WebhookService {
           registerDate: new Date(),
         });
       }
+
       return user._id;
     } catch (error) {
       throw new InternalServerErrorException('Failed to find or create user');
@@ -121,9 +120,13 @@ export class WebhookService {
         clientId: userId,
       });
 
-      //Todo: si cuando se vayan a cumplir las 24 horas el chat sigue mandando mensajes se resetea el tiempo de vida del chat.
-      if (this.isConversationExpired(conversation)) {
-        throw new GoneException('Conversation Expired.');
+      if (!conversation || this.isConversationExpired(conversation)) {
+        const conversationId = await this.createConversation(
+          userId,
+          conversationChanges,
+        );
+
+        return { found: false, _id: conversationId };
       }
 
       return {
@@ -131,17 +134,9 @@ export class WebhookService {
         _id: conversation._id,
       };
     } catch (error) {
-      if (
-        error instanceof NotFoundException ||
-        error instanceof GoneException
-      ) {
-        const conversationId = await this.createConversation(
-          userId,
-          conversationChanges,
-        );
-        return { found: false, _id: conversationId };
-      }
-      throw error;
+      throw new InternalServerErrorException(
+        'Failed to find or create conversation',
+      );
     }
   }
 
@@ -259,10 +254,13 @@ export class WebhookService {
         ),
       );
 
-      this.logger.log(
-        `WhatsApp Response: ${JSON.stringify(whatsAppResponse.data)}`,
-      );
+      this.logger.log(`WhatsApp Response: ${JSON.stringify(whatsAppResponse)}`);
+      return whatsAppResponse;
     } catch (error) {
+      console.log(
+        `sendWhatsAppMessage ERROR ==> ${JSON.stringify(error) ?? error} }`,
+      );
+
       throw new InternalServerErrorException(
         'Failed to send message via WhatsApp',
       );
@@ -284,20 +282,6 @@ export class WebhookService {
     } catch (error) {
       throw new InternalServerErrorException('Failed to expire conversation');
     }
-  }
-
-  private handleError(error: Error) {
-    if (
-      error instanceof BadRequestException ||
-      error instanceof ForbiddenException ||
-      error instanceof GoneException ||
-      error instanceof InternalServerErrorException ||
-      error instanceof NotFoundException
-    ) {
-      throw error;
-    }
-    this.logger.error(`Unexpected error: ${error.message}`, error.stack);
-    throw new InternalServerErrorException('Unexpected error occurred');
   }
 
   private webhookVerification(queryParams?: Record<string, string>): string {
@@ -349,15 +333,23 @@ export class WebhookService {
   }
 
   private isConversationExpired(conversation: ConversationDocument): boolean {
-    if (
-      !conversation.endDate &&
-      !this.isConversationAlive(conversation.startDate)
-    ) {
-      this.expireConversation(conversation._id);
+    //todo: puede existir mas de una conversacion 1 viva muchas muertas
+
+    if (conversation.endDate) {
       return true;
     }
 
-    if (conversation.endDate) {
+    const userMessages = conversation.message.filter(
+      (message) => message.author === 'user',
+    );
+
+    const lastUserMessage = userMessages[userMessages.length - 1];
+    const isConversationAlive = this.isConversationAlive(
+      lastUserMessage.timestamp,
+    );
+
+    if (!isConversationAlive) {
+      this.expireConversation(conversation._id);
       return true;
     }
 

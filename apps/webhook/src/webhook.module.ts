@@ -1,7 +1,10 @@
-import { Logger, Module } from '@nestjs/common';
+import { Logger, MiddlewareConsumer, Module } from '@nestjs/common';
 import { WebhookController } from './webhook.controller';
-import { WebhookService } from './webhook.service';
-import { DatabaseModule, LoggerModule } from '@app/common';
+import {
+  DatabaseModule,
+  LoggerModule,
+  RequestLoggerMiddleware,
+} from '@app/common';
 import { ConfigModule } from '@nestjs/config';
 import * as Joi from 'joi';
 import { HttpModule } from '@nestjs/axios';
@@ -12,6 +15,7 @@ import {
   ConversationDocument,
   ConversationSchema,
 } from './models/conversation.schema';
+import { WhatsappService } from './services/whatsapp/whatsapp.service';
 
 @Module({
   imports: [
@@ -23,7 +27,7 @@ import {
     LoggerModule,
     ConfigModule.forRoot({
       isGlobal: true,
-      // envFilePath: 'apps/webhook/.env',
+      envFilePath: 'apps/webhook/.env',
       validationSchema: Joi.object({
         GOOGLE_APPLICATION_CREDENTIALS: Joi.string().required(),
         WEBHOOK_VERIFY_TOKEN: Joi.string().required(),
@@ -36,10 +40,14 @@ import {
   ],
   controllers: [WebhookController],
   providers: [
-    WebhookService,
+    WhatsappService,
     ClientsRepository,
     ConversationsRepository,
     Logger,
   ],
 })
-export class WebhookModule {}
+export class WebhookModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(RequestLoggerMiddleware).forRoutes('*');
+  }
+}

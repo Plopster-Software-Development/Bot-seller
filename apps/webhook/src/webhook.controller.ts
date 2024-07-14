@@ -1,10 +1,10 @@
 import { All, Body, Controller, Get, Query } from '@nestjs/common';
-import { WebhookService } from './webhook.service';
 import { WhatsappMessageDTO } from './dto';
+import { WhatsappService } from './services/whatsapp/whatsapp.service';
 
 @Controller('webhook')
 export class WebhookController {
-  constructor(private readonly webhookService: WebhookService) {}
+  constructor(private readonly whatsAppService: WhatsappService) {}
 
   @Get('ping')
   async handlePing() {
@@ -13,9 +13,18 @@ export class WebhookController {
 
   @All('whatsapp')
   async handleWebhook(
-    @Query() queryParams: Record<string, string>,
+    @Query() queryParams?: Record<string, string>,
     @Body() webhookDto?: WhatsappMessageDTO,
   ): Promise<any> {
-    return this.webhookService.whatsappProcessMessage(queryParams, webhookDto);
+    try {
+      return await this.whatsAppService.whatsappProcessMessage(
+        queryParams,
+        webhookDto,
+      );
+    } catch (error) {
+      console.log(
+        `Error returned to Controller ${JSON.stringify(error) ?? error}`,
+      );
+    }
   }
 }

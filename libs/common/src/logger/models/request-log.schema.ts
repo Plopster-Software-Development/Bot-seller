@@ -1,0 +1,38 @@
+import { AbstractDocument } from '@app/common';
+import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+
+@Schema({ versionKey: false })
+export class RequestLogDocument extends AbstractDocument {
+  @Prop()
+  method: string;
+
+  @Prop()
+  url: string;
+
+  @Prop({ type: Object })
+  headers: Record<string, any>;
+
+  @Prop({ type: Object })
+  body: Record<string, any>;
+
+  @Prop({ type: Object })
+  response: Record<string, any>;
+
+  @Prop()
+  statusCode: number;
+
+  @Prop()
+  responseTime: number;
+
+  @Prop()
+  ip: string;
+
+  @Prop()
+  timestamp: Date;
+
+  @Prop()
+  microservice: string;
+}
+
+export const RequestLogSchema =
+  SchemaFactory.createForClass(RequestLogDocument);
