@@ -1,8 +1,11 @@
-import { AbstractDocument } from '@app/common';
+import { SchemaTypes, Types } from 'mongoose';
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 
 @Schema({ versionKey: false })
-export class RequestLogDocument extends AbstractDocument {
+export class RequestLogDocument {
+  @Prop({ type: SchemaTypes.ObjectId })
+  _id: Types.ObjectId;
+
   @Prop()
   method: string;
 

@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { Request, Response } from 'express';
 import { LoggerService } from '../logger.service';
+import { Types } from 'mongoose';
 
 @Catch()
 export class HttpExceptionFilter implements ExceptionFilter {
@@ -22,6 +23,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
       : HttpStatus.INTERNAL_SERVER_ERROR;
 
     const log = {
+      _id: new Types.ObjectId(),
       message: exception.message,
       stack: exception.stack,
       method: request.method,

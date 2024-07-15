@@ -14,6 +14,7 @@ import dialogflow from '@google-cloud/dialogflow';
 import { Types } from 'mongoose';
 import { lastValueFrom } from 'rxjs';
 import { ConversationDocument } from '../../models/conversation.schema';
+import { WhatsappStatusDto } from '../../dto/whatsapp-status.dto';
 
 @Injectable()
 export class WhatsappService {
@@ -38,7 +39,7 @@ export class WhatsappService {
 
   public async whatsappProcessMessage(
     queryParams?: Record<string, string>,
-    webhookDto?: WhatsappMessageDTO,
+    webhookDto?: WhatsappMessageDTO | WhatsappStatusDto,
   ) {
     try {
       const challengeResponse = this.webhookVerification(queryParams);
@@ -52,7 +53,7 @@ export class WhatsappService {
       }
 
       const userId = await this.findOrCreateUser();
-
+      //todo: What to do with the message status???
       const conversationId = await this.findOrCreateConversation(
         userId,
         this.conversationChanges,
@@ -158,6 +159,7 @@ export class WhatsappService {
             timestamp: new Date(messageTimestamp * 1000),
             author: 'user',
             content: conversationChanges.value.messages[0].text.body,
+            messageStatus: '',
           },
         ],
       });
@@ -257,10 +259,6 @@ export class WhatsappService {
       this.logger.log(`WhatsApp Response: ${JSON.stringify(whatsAppResponse)}`);
       return whatsAppResponse;
     } catch (error) {
-      console.log(
-        `sendWhatsAppMessage ERROR ==> ${JSON.stringify(error) ?? error} }`,
-      );
-
       throw new InternalServerErrorException(
         'Failed to send message via WhatsApp',
       );

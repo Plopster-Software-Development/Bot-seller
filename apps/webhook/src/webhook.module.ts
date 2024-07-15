@@ -34,6 +34,7 @@ import { WhatsappService } from './services/whatsapp/whatsapp.service';
         FACEBOOK_GRAPH_API_TK: Joi.string().required(),
         PORT: Joi.number().required(),
         MONGODB_URI: Joi.string().required(),
+        LOGGING_MONGODB_URI: Joi.string().required(),
       }),
     }),
     HttpModule,

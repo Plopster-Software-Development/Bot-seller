@@ -1,6 +1,7 @@
 import { All, Body, Controller, Get, Query } from '@nestjs/common';
 import { WhatsappMessageDTO } from './dto';
 import { WhatsappService } from './services/whatsapp/whatsapp.service';
+import { WhatsappStatusDto } from './dto/whatsapp-status.dto';
 
 @Controller('webhook')
 export class WebhookController {
@@ -14,7 +15,7 @@ export class WebhookController {
   @All('whatsapp')
   async handleWebhook(
     @Query() queryParams?: Record<string, string>,
-    @Body() webhookDto?: WhatsappMessageDTO,
+    @Body() webhookDto?: WhatsappMessageDTO | WhatsappStatusDto,
   ): Promise<any> {
     try {
       return await this.whatsAppService.whatsappProcessMessage(

@@ -15,6 +15,9 @@ export class Message {
 
   @Prop({ required: true })
   content: string;
+
+  @Prop({ required: false })
+  messageStatus: string;
 }
 
 @Schema({ versionKey: false })
