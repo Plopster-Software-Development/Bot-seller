@@ -4,7 +4,6 @@ import { Types } from 'mongoose';
 import MongooseDelete from 'mongoose-delete';
 
 @Schema({ versionKey: false })
-// TODO: Change name to TenantUsersDocument
 export class TenantUsersDocument extends AbstractDocument {
   @Prop({ type: Types.ObjectId, required: true, ref: 'TenantDocument' })
   tenantId: Types.ObjectId;
@@ -31,8 +30,11 @@ export class TenantUsersDocument extends AbstractDocument {
   updatedAt: Date;
 }
 
-const UsersSchema = SchemaFactory.createForClass(TenantUsersDocument);
+const TenantUsersSchema = SchemaFactory.createForClass(TenantUsersDocument);
 
-UsersSchema.plugin(MongooseDelete, { deletedBy: true, deletedByType: String });
+TenantUsersSchema.plugin(MongooseDelete, {
+  deletedBy: true,
+  deletedByType: String,
+});
 
-export { UsersSchema };
+export { TenantUsersSchema };
