@@ -4,6 +4,7 @@ import { Logger } from '@nestjs/common';
 
 export abstract class AbstractRepository<TDocument extends AbstractDocument> {
   protected abstract readonly logger: Logger;
+
   constructor(protected readonly model: Model<TDocument>) {}
 
   async create(document: Omit<TDocument, '_id'>): Promise<TDocument> {
@@ -25,7 +26,6 @@ export abstract class AbstractRepository<TDocument extends AbstractDocument> {
         `Document was not found with the filterQuery`,
         filterQuery,
       );
-      // throw new NotFoundException('Document was not found');
       return undefined;
     }
 
@@ -37,9 +37,7 @@ export abstract class AbstractRepository<TDocument extends AbstractDocument> {
     update: UpdateQuery<TDocument>,
   ): Promise<TDocument> {
     const document = await this.model
-      .findOneAndUpdate(filterQuery, update, {
-        new: true,
-      })
+      .findOneAndUpdate(filterQuery, update, { new: true })
       .lean<TDocument>(true);
 
     if (!document) {
@@ -47,7 +45,6 @@ export abstract class AbstractRepository<TDocument extends AbstractDocument> {
         `Document was not found with the filterQuery`,
         filterQuery,
       );
-      // throw new NotFoundException('Document was not found');
       return undefined;
     }
 
@@ -61,7 +58,7 @@ export abstract class AbstractRepository<TDocument extends AbstractDocument> {
   async findOneAndDelete(
     filterQuery: FilterQuery<TDocument>,
   ): Promise<TDocument> {
-    const document = this.model
+    const document = await this.model
       .findOneAndDelete(filterQuery)
       .lean<TDocument>(true);
 
@@ -70,7 +67,6 @@ export abstract class AbstractRepository<TDocument extends AbstractDocument> {
         `Document was not found with the filterQuery`,
         filterQuery,
       );
-      // throw new NotFoundException('Document was not found');
       return undefined;
     }
 

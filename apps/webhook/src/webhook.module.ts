@@ -21,7 +21,7 @@ import { WhatsappService } from './services/whatsapp/whatsapp.service';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: 'apps/webhook/.env',
+      // envFilePath: 'apps/webhook/.env',
       validationSchema: Joi.object({
         GOOGLE_APPLICATION_CREDENTIALS: Joi.string().required(),
         WEBHOOK_VERIFY_TOKEN: Joi.string().required(),

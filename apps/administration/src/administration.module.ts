@@ -1,24 +1,18 @@
 import { Module } from '@nestjs/common';
 import { AdministrationController } from './administration.controller';
 import { AdministrationService } from './administration.service';
-import { MongooseModule } from '@nestjs/mongoose';
 import { ConfigService } from '@nestjs/config';
+import { DatabaseModule } from '@app/common';
 
 @Module({
   imports: [
-    MongooseModule.forRootAsync({
-      connectionName: 'adminConnection',
-      useFactory: (configService: ConfigService) => ({
-        uri: configService.get('LOGGING_MONGODB_URI'),
-      }),
-      inject: [ConfigService],
-    }),
-    MongooseModule.forFeature(
-      [
-        // { name: ErrorLogDocument.name, schema: ErrorLogSchema },
-        // { name: RequestLogDocument.name, schema: RequestLogSchema },
-      ],
+    DatabaseModule.forRootAsync(
       'adminConnection',
+      (configService: ConfigService) =>
+        `${configService.get<string>('MONGODB_URI')}/admin-interactions`,
+      [
+        // { name: ClientDocument.name, schema: ClientSchema },
+      ],
     ),
   ],
   controllers: [AdministrationController],

@@ -2,7 +2,11 @@ import { MiddlewareConsumer, Module } from '@nestjs/common';
 import { ConversationsService } from './conversations.service';
 import { ConversationsController } from './conversations.controller';
 import * as Joi from 'joi';
-import { LoggerModule, RequestLoggerMiddleware } from '@app/common';
+import {
+  DatabaseModule,
+  LoggerModule,
+  RequestLoggerMiddleware,
+} from '@app/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ConversationsRepository } from './conversations.repository';
 import {
@@ -17,26 +21,9 @@ import {
   OrderDetailsDocument,
   OrderDetailsSchema,
 } from './models/orderDetails.schema';
-import { MongooseModule } from '@nestjs/mongoose';
 
 @Module({
   imports: [
-    MongooseModule.forRootAsync({
-      connectionName: 'clientInteractions',
-      useFactory: (configService: ConfigService) => ({
-        uri: `${configService.get('MONGODB_URI')}/client-interactions}`,
-      }),
-      inject: [ConfigService],
-    }),
-    MongooseModule.forFeature(
-      [
-        { name: ClientDocument.name, schema: ClientSchema },
-        { name: ConversationDocument.name, schema: ConversationSchema },
-        { name: OrderDetailsDocument.name, schema: OrderDetailsSchema },
-      ],
-      'clientInteractions',
-    ),
-    LoggerModule,
     ConfigModule.forRoot({
       isGlobal: true,
       validationSchema: Joi.object({
@@ -44,7 +31,17 @@ import { MongooseModule } from '@nestjs/mongoose';
         PORT: Joi.number().required(),
       }),
     }),
-    ConversationsModule,
+    DatabaseModule.forRootAsync(
+      'clientInteractions',
+      (configService: ConfigService) =>
+        `${configService.get<string>('MONGODB_URI')}/client-interactions`,
+      [
+        { name: ClientDocument.name, schema: ClientSchema },
+        { name: ConversationDocument.name, schema: ConversationSchema },
+        { name: OrderDetailsDocument.name, schema: OrderDetailsSchema },
+      ],
+    ),
+    LoggerModule,
   ],
   controllers: [ConversationsController],
   providers: [ConversationsService, ConversationsRepository],

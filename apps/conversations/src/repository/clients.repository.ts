@@ -10,7 +10,7 @@ export class ClientsRepository extends AbstractRepository<ClientDocument> {
   protected readonly logger = new Logger(ClientsRepository.name);
 
   constructor(
-    @InjectModel(ClientDocument.name)
+    @InjectModel(ClientDocument.name, 'clientInteractions')
     clientModel: Model<ClientDocument>,
   ) {
     super(clientModel);
