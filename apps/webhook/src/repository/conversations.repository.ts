@@ -10,7 +10,7 @@ export class ConversationsRepository extends AbstractRepository<ConversationDocu
   protected readonly logger = new Logger(ConversationsRepository.name);
 
   constructor(
-    @InjectModel(ConversationDocument.name)
+    @InjectModel(ConversationDocument.name, 'clientInteractions')
     conversationModel: Model<ConversationDocument>,
   ) {
     super(conversationModel);

@@ -13,6 +13,12 @@ export class Item {
   @Prop({ required: true })
   quantity: number;
 
+  @Prop()
+  titleVariety: string;
+
+  @Prop()
+  variety: string;
+
   @Prop({ required: true })
   price: number;
 }
@@ -25,14 +31,17 @@ export class OrderDetailsDocument extends AbstractDocument {
   @Prop({ type: Types.ObjectId, required: true, ref: 'Conversacion' })
   conversationId: Types.ObjectId;
 
-  @Prop({ type: [Item], default: [] })
+  @Prop({ default: [] })
   items: Item[];
 
   @Prop({ required: true })
-  total: number;
+  totalPrice: number;
 
   @Prop({ default: Date.now })
-  updateDate: Date;
+  createdAt: Date;
+
+  @Prop({ default: Date.now })
+  updatedAt: Date;
 }
 
 export const OrderDetailsSchema =

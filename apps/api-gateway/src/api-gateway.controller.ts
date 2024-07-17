@@ -11,6 +11,10 @@ export class ApiGatewayController {
     return this.apiGatewayService.pingConversations();
   }
 
+  //TODO: Auth:
+  // TODO: 1. Register app Owner
+  // TODO: 2: Identify app Owner and let
+  // TODO: 3. implement auth process to identify the Bot
   @Post('conversations')
   conversationsManager(@Body() apiGatewayDto?: any) {
     console.log(`conversationsManager ==> ${JSON.stringify(apiGatewayDto)}}`);

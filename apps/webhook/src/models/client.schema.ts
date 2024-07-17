@@ -3,17 +3,29 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 
 @Schema({ versionKey: false })
 export class ClientDocument extends AbstractDocument {
-  @Prop()
+  @Prop({ required: true })
   alias: string;
 
   @Prop({ required: false })
-  name: string;
+  fullName: string;
 
   @Prop({ required: false, unique: true })
   email: string;
 
   @Prop({ required: true, unique: true })
   phone: string;
+
+  @Prop({ required: false })
+  billingAddress: string;
+
+  @Prop({ required: false })
+  gender: string;
+
+  @Prop({ required: false })
+  dniType: string;
+
+  @Prop({ required: false })
+  dni: string;
 
   @Prop({ default: Date.now })
   registerDate: Date;

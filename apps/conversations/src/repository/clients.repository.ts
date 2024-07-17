@@ -3,7 +3,7 @@ import { AbstractRepository } from '@app/common';
 
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { ClientDocument } from '../models/client.schema';
+import { ClientDocument } from '../../../administration/src/models/client.schema';
 
 @Injectable()
 export class ClientsRepository extends AbstractRepository<ClientDocument> {

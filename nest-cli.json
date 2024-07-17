@@ -43,6 +43,15 @@
       "compilerOptions": {
         "tsConfigPath": "apps/webhook/tsconfig.app.json"
       }
+    },
+    "administration": {
+      "type": "application",
+      "root": "apps/administration",
+      "entryFile": "main",
+      "sourceRoot": "apps/administration/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/administration/tsconfig.app.json"
+      }
     }
   },
   "monorepo": true,

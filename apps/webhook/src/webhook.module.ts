@@ -1,11 +1,7 @@
 import { Logger, MiddlewareConsumer, Module } from '@nestjs/common';
 import { WebhookController } from './webhook.controller';
-import {
-  DatabaseModule,
-  LoggerModule,
-  RequestLoggerMiddleware,
-} from '@app/common';
-import { ConfigModule } from '@nestjs/config';
+import { LoggerModule, RequestLoggerMiddleware } from '@app/common';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import * as Joi from 'joi';
 import { HttpModule } from '@nestjs/axios';
 import { ClientsRepository } from './repository/clients.repository';
@@ -16,14 +12,24 @@ import {
   ConversationSchema,
 } from './models/conversation.schema';
 import { WhatsappService } from './services/whatsapp/whatsapp.service';
+import { MongooseModule } from '@nestjs/mongoose';
 
 @Module({
   imports: [
-    DatabaseModule,
-    DatabaseModule.forFeature([
-      { name: ClientDocument.name, schema: ClientSchema },
-      { name: ConversationDocument.name, schema: ConversationSchema },
-    ]),
+    MongooseModule.forRootAsync({
+      connectionName: 'clientInteractions',
+      useFactory: (configService: ConfigService) => ({
+        uri: `${configService.get('MONGODB_URI')}/client-interactions}`,
+      }),
+      inject: [ConfigService],
+    }),
+    MongooseModule.forFeature(
+      [
+        { name: ClientDocument.name, schema: ClientSchema },
+        { name: ConversationDocument.name, schema: ConversationSchema },
+      ],
+      'clientInteractions',
+    ),
     LoggerModule,
     ConfigModule.forRoot({
       isGlobal: true,

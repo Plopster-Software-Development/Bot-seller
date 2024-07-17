@@ -35,6 +35,9 @@ export class RequestLogDocument {
 
   @Prop()
   microservice: string;
+
+  @Prop()
+  direction: string;
 }
 
 export const RequestLogSchema =

@@ -22,7 +22,7 @@ export class Message {
 
 @Schema({ versionKey: false })
 export class ConversationDocument extends AbstractDocument {
-  @Prop({ type: Types.ObjectId, required: true, ref: 'Client' })
+  @Prop({ type: Types.ObjectId, required: true, ref: 'ClientDocument' })
   clientId: Types.ObjectId;
 
   @Prop({ required: true })
