@@ -99,9 +99,13 @@ export class WhatsappService {
       if (!user) {
         user = await this.clientsRepository.create({
           alias: this.conversationChanges.value.contacts[0].profile.name,
-          name: '',
-          email: '',
+          fullName: null,
+          email: null,
           phone: this.conversationChanges.value.contacts[0].wa_id,
+          billingAddress: null,
+          gender: null,
+          dniType: null,
+          dni: null,
           registerDate: new Date(),
         });
       }

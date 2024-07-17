@@ -1,19 +1,36 @@
-import { Module } from '@nestjs/common';
+import { Module, DynamicModule } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ModelDefinition, MongooseModule } from '@nestjs/mongoose';
 
-@Module({
-  imports: [
-    MongooseModule.forRootAsync({
-      useFactory: (configService: ConfigService) => ({
-        uri: configService.get('MONGODB_URI'),
-      }),
-      inject: [ConfigService],
-    }),
-  ],
-})
+@Module({})
 export class DatabaseModule {
-  static forFeature(models: ModelDefinition[]) {
-    return MongooseModule.forFeature(models);
+  static forRootAsync(
+    connectionName: string,
+    useFactory: (configService: ConfigService) => string,
+    models: ModelDefinition[],
+  ): DynamicModule {
+    return {
+      module: DatabaseModule,
+      imports: [
+        MongooseModule.forRootAsync({
+          connectionName,
+          useFactory: (configService: ConfigService) => ({
+            uri: useFactory(configService),
+          }),
+          inject: [ConfigService],
+        }),
+        MongooseModule.forFeature(models, connectionName),
+      ],
+      exports: [
+        MongooseModule.forRootAsync({
+          connectionName,
+          useFactory: (configService: ConfigService) => ({
+            uri: useFactory(configService),
+          }),
+          inject: [ConfigService],
+        }),
+        MongooseModule.forFeature(models, connectionName),
+      ],
+    };
   }
 }

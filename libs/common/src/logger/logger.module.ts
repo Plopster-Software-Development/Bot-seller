@@ -8,8 +8,8 @@ import {
   RequestLogDocument,
   RequestLogSchema,
 } from './models/request-log.schema';
-import { MongooseModule } from '@nestjs/mongoose';
 import { ConfigService } from '@nestjs/config';
+import { DatabaseModule } from '../database';
 
 @Module({
   imports: [
@@ -26,19 +26,14 @@ import { ConfigService } from '@nestjs/config';
         },
       },
     }),
-    MongooseModule.forRootAsync({
-      connectionName: 'loggingConnection',
-      useFactory: (configService: ConfigService) => ({
-        uri: configService.get('LOGGING_MONGODB_URI'),
-      }),
-      inject: [ConfigService],
-    }),
-    MongooseModule.forFeature(
+    DatabaseModule.forRootAsync(
+      'loggingConnection',
+      (configService: ConfigService) =>
+        `${configService.get<string>('MONGODB_URI')}/logging-system`,
       [
         { name: ErrorLogDocument.name, schema: ErrorLogSchema },
         { name: RequestLogDocument.name, schema: RequestLogSchema },
       ],
-      'loggingConnection',
     ),
   ],
   providers: [

@@ -1,6 +1,10 @@
 import { Logger, MiddlewareConsumer, Module } from '@nestjs/common';
 import { WebhookController } from './webhook.controller';
-import { LoggerModule, RequestLoggerMiddleware } from '@app/common';
+import {
+  DatabaseModule,
+  LoggerModule,
+  RequestLoggerMiddleware,
+} from '@app/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import * as Joi from 'joi';
 import { HttpModule } from '@nestjs/axios';
@@ -12,25 +16,9 @@ import {
   ConversationSchema,
 } from './models/conversation.schema';
 import { WhatsappService } from './services/whatsapp/whatsapp.service';
-import { MongooseModule } from '@nestjs/mongoose';
 
 @Module({
   imports: [
-    MongooseModule.forRootAsync({
-      connectionName: 'clientInteractions',
-      useFactory: (configService: ConfigService) => ({
-        uri: `${configService.get('MONGODB_URI')}/client-interactions}`,
-      }),
-      inject: [ConfigService],
-    }),
-    MongooseModule.forFeature(
-      [
-        { name: ClientDocument.name, schema: ClientSchema },
-        { name: ConversationDocument.name, schema: ConversationSchema },
-      ],
-      'clientInteractions',
-    ),
-    LoggerModule,
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: 'apps/webhook/.env',
@@ -40,9 +28,18 @@ import { MongooseModule } from '@nestjs/mongoose';
         FACEBOOK_GRAPH_API_TK: Joi.string().required(),
         PORT: Joi.number().required(),
         MONGODB_URI: Joi.string().required(),
-        LOGGING_MONGODB_URI: Joi.string().required(),
       }),
     }),
+    DatabaseModule.forRootAsync(
+      'clientInteractions',
+      (configService: ConfigService) =>
+        `${configService.get<string>('MONGODB_URI')}/client-interactions`,
+      [
+        { name: ClientDocument.name, schema: ClientSchema },
+        { name: ConversationDocument.name, schema: ConversationSchema },
+      ],
+    ),
+    LoggerModule,
     HttpModule,
   ],
   controllers: [WebhookController],
@@ -52,6 +49,7 @@ import { MongooseModule } from '@nestjs/mongoose';
     ConversationsRepository,
     Logger,
   ],
+  exports: [ClientsRepository, ConversationsRepository],
 })
 export class WebhookModule {
   configure(consumer: MiddlewareConsumer) {
