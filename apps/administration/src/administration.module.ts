@@ -11,6 +11,7 @@ import {
   TenantUsersDocument,
   TenantUsersSchema,
 } from './models/tenant-users.schema';
+import { JwtModule } from '@nestjs/jwt';
 
 @Module({
   imports: [
@@ -31,6 +32,11 @@ import {
       ],
     ),
     LoggerModule,
+    JwtModule.registerAsync({
+      useFactory: (configService: ConfigService) => ({
+        secret: configService.get<string>('JWT_SECRET_APP'),
+      }),
+    }),
   ],
   controllers: [AdministrationController],
   providers: [AdministrationService, TenantsRepository, TenantUsersRepository],

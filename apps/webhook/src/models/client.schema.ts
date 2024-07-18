@@ -9,10 +9,10 @@ export class ClientDocument extends AbstractDocument {
   @Prop({ required: false })
   fullName: string;
 
-  @Prop({ required: false, unique: true })
+  @Prop({ required: false })
   email: string;
 
-  @Prop({ required: true, unique: true })
+  @Prop({ required: true })
   phone: string;
 
   @Prop({ required: false })
