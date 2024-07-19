@@ -1,29 +1,24 @@
 import {
-  BadRequestException,
-  ForbiddenException,
   Injectable,
   InternalServerErrorException,
   Logger,
 } from '@nestjs/common';
-import { ChangesDto, ValueDto, WhatsappMessageDTO } from '../../dto';
 import { ConfigService } from '@nestjs/config';
-import { HttpService } from '@nestjs/axios';
 import { ConversationsRepository } from '../../repository/conversations.repository';
 import { ClientsRepository } from '../../repository/clients.repository';
 import dialogflow from '@google-cloud/dialogflow';
 import { Types } from 'mongoose';
-import { lastValueFrom } from 'rxjs';
 import { ConversationDocument } from '../../models/conversation.schema';
-import { WhatsappStatusDto } from '../../dto/whatsapp-status.dto';
+import { TwilioMessageDto } from '../../dto/twilio-message.dto';
+import { Twilio } from 'twilio';
 
 @Injectable()
 export class WhatsappService {
   private readonly dialogflowClient: any;
-  private conversationChanges: ChangesDto;
+  private readonly twilioClient: any;
 
   constructor(
     private readonly configService: ConfigService,
-    private readonly httpService: HttpService,
     private readonly conversationRepository: ConversationsRepository,
     private readonly clientsRepository: ClientsRepository,
     private readonly logger: Logger,
@@ -35,54 +30,49 @@ export class WhatsappService {
     this.dialogflowClient = new dialogflow.SessionsClient({
       keyFilename: credentialsPath,
     });
+
+    //Existen varias credenciales de twilio dependiendo del proyecto, como gestioanrlo???
+    this.twilioClient = new Twilio(
+      this.configService.get<string>('TWILIO_ACCOUNT_SID'),
+      this.configService.get<string>('TWILIO_ACCOUNT_TOKEN'),
+    );
   }
 
-  public async whatsappProcessMessage(
-    queryParams?: Record<string, string>,
-    webhookDto?: WhatsappMessageDTO | WhatsappStatusDto,
-  ) {
+  public async whatsappProcessMessage(webhookDto?: TwilioMessageDto) {
     try {
-      const challengeResponse = this.webhookVerification(queryParams);
-      if (challengeResponse) {
-        return challengeResponse;
-      }
+      const customerPhoneNo = webhookDto.From.replace('whatsapp', '');
 
-      this.conversationChanges = this.validateRequestStructure(webhookDto);
-      if (!this.conversationChanges) {
-        return;
-      }
+      const userId = await this.findOrCreateUser(
+        webhookDto.ProfileName,
+        customerPhoneNo,
+      );
 
-      const userId = await this.findOrCreateUser();
-      //todo: What to do with the message status???
       const conversationId = await this.findOrCreateConversation(
         userId,
-        this.conversationChanges,
+        webhookDto.Body,
       );
 
       if (conversationId.found) {
         await this.updateConversation(
           conversationId._id,
-          this.conversationChanges,
-          null,
+          webhookDto.Body,
           'user',
         );
       }
 
       const dialogFlowResponse = await this.processDialogFlowMessage(
-        this.conversationChanges,
+        webhookDto.Body,
         conversationId._id.toString(),
       );
 
       await this.updateConversation(
         conversationId._id,
-        this.conversationChanges,
         dialogFlowResponse.fulfillmentText,
         'bot',
       );
 
       return await this.sendWhatsAppMessage(
-        this.conversationChanges.value.metadata.phone_number_id,
-        this.conversationChanges.value.contacts[0].wa_id,
+        webhookDto.From,
         dialogFlowResponse.fulfillmentText,
       );
     } catch (error) {
@@ -90,18 +80,21 @@ export class WhatsappService {
     }
   }
 
-  private async findOrCreateUser(): Promise<Types.ObjectId> {
+  private async findOrCreateUser(
+    customerAlias: string,
+    customerPhoneNo: string,
+  ): Promise<Types.ObjectId> {
     try {
       let user = await this.clientsRepository.findOne({
-        phone: this.conversationChanges.value.contacts[0].wa_id,
+        phone: customerPhoneNo,
       });
 
       if (!user) {
         user = await this.clientsRepository.create({
-          alias: this.conversationChanges.value.contacts[0].profile.name,
+          alias: customerAlias,
           fullName: null,
           email: null,
-          phone: this.conversationChanges.value.contacts[0].wa_id,
+          phone: customerPhoneNo,
           billingAddress: null,
           gender: null,
           dniType: null,
@@ -118,7 +111,7 @@ export class WhatsappService {
 
   private async findOrCreateConversation(
     userId: Types.ObjectId,
-    conversationChanges: ChangesDto,
+    conversationMessage?: string,
   ): Promise<{ found: boolean; _id: Types.ObjectId }> {
     try {
       const conversation = await this.conversationRepository.findOne({
@@ -128,7 +121,7 @@ export class WhatsappService {
       if (!conversation || this.isConversationExpired(conversation)) {
         const conversationId = await this.createConversation(
           userId,
-          conversationChanges,
+          conversationMessage,
         );
 
         return { found: false, _id: conversationId };
@@ -147,22 +140,19 @@ export class WhatsappService {
 
   private async createConversation(
     userId: Types.ObjectId,
-    conversationChanges: ChangesDto,
+    message: string,
   ): Promise<Types.ObjectId> {
-    const messageTimestamp = parseInt(
-      conversationChanges.value.messages[0].timestamp,
-    );
     try {
       const newConversation = await this.conversationRepository.create({
         clientId: userId,
-        startDate: new Date(messageTimestamp * 1000),
+        startDate: new Date(),
         endDate: null,
         message: [
           {
             messageId: new Types.ObjectId(),
-            timestamp: new Date(messageTimestamp * 1000),
+            timestamp: new Date(),
             author: 'user',
-            content: conversationChanges.value.messages[0].text.body,
+            content: message,
             messageStatus: '',
           },
         ],
@@ -174,7 +164,7 @@ export class WhatsappService {
   }
 
   private async processDialogFlowMessage(
-    conversationChanges: ChangesDto,
+    customerMessage: string,
     sessionId: string,
   ) {
     try {
@@ -187,7 +177,7 @@ export class WhatsappService {
         session: sessionPath,
         queryInput: {
           text: {
-            text: conversationChanges.value.messages[0].text.body,
+            text: customerMessage,
             languageCode: 'en-US',
           },
         },
@@ -204,24 +194,19 @@ export class WhatsappService {
 
   private async updateConversation(
     conversationId: Types.ObjectId,
-    conversationChanges: ChangesDto,
     message: string | null,
     author: string,
   ) {
     try {
-      const messageTimestamp = parseInt(
-        conversationChanges.value.messages[0].timestamp,
-      );
       await this.conversationRepository.findOneAndUpdate(
         { _id: conversationId },
         {
           $push: {
             message: {
               messageId: new Types.ObjectId(),
-              timestamp: new Date(messageTimestamp * 1000),
+              timestamp: new Date(),
               author: author,
-              content:
-                message ?? conversationChanges.value.messages[0].text.body,
+              content: message,
             },
           },
         },
@@ -234,35 +219,21 @@ export class WhatsappService {
   }
 
   private async sendWhatsAppMessage(
-    botPhoneNumberId: string,
     customerPhoneNo: string,
-    customerMessage: string,
+    botMessage: string,
   ) {
     try {
-      const requestData = {
-        messaging_product: 'whatsapp',
-        to: customerPhoneNo,
-        text: { body: customerMessage },
+      const messageRequest = {
+        body: botMessage,
+        from: `whatsapp:${this.configService.get<string>('TWILIO_PHONE_NUMBER')}`,
+        to: `${customerPhoneNo}`,
       };
+      console.log(messageRequest);
+      const message = await this.twilioClient.messages.create(messageRequest);
 
-      const headers = {
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${this.configService.get('FACEBOOK_GRAPH_API_TK')}`,
-        },
-      };
-
-      const whatsAppResponse = await lastValueFrom(
-        this.httpService.post(
-          `https://graph.facebook.com/v19.0/${botPhoneNumberId}/messages`,
-          requestData,
-          headers,
-        ),
-      );
-
-      this.logger.log(`WhatsApp Response: ${JSON.stringify(whatsAppResponse)}`);
-      return whatsAppResponse;
+      return message;
     } catch (error) {
+      console.log(error);
       throw new InternalServerErrorException(
         'Failed to send message via WhatsApp',
       );
@@ -286,53 +257,18 @@ export class WhatsappService {
     }
   }
 
-  private webhookVerification(queryParams?: Record<string, string>): string {
-    const mode = queryParams?.['hub.mode'];
-    const challenge = queryParams?.['hub.challenge'];
-    const verifyToken = queryParams?.['hub.verify_token'];
-    const webhookVerifyToken = this.configService.get('WEBHOOK_VERIFY_TOKEN');
+  // private async processAudioMessage(conversationValues: ValueDto) {
+  //   const botPhoneNumberId = conversationValues.metadata.phone_number_id;
+  //   const customerPhoneNo = conversationValues.contacts[0].wa_id;
+  //   const customerName = conversationValues.contacts[0].profile.name;
+  //   const customerMessage = `${customerName}, I'm very sorry, I can't process audio messages yet. However, my creators are working hard on adding this functionality.`;
 
-    if (mode && verifyToken) {
-      if (mode === 'subscribe' && verifyToken === webhookVerifyToken) {
-        return challenge;
-      }
-      throw new ForbiddenException('Invalid webhook verification token');
-    }
-  }
-
-  private validateRequestStructure(
-    webhookDto?: WhatsappMessageDTO,
-  ): ChangesDto {
-    if (!webhookDto || webhookDto.object !== 'whatsapp_business_account') {
-      throw new BadRequestException('Invalid request object');
-    }
-
-    const conversationChanges = webhookDto.entry?.[0]?.changes?.[0];
-    if (!conversationChanges) {
-      throw new BadRequestException('Invalid webhook structure');
-    }
-
-    const messageType = conversationChanges.value?.messages?.[0]?.type;
-    if (messageType === 'audio') {
-      this.processAudioMessage(conversationChanges.value);
-      return null;
-    }
-
-    return conversationChanges;
-  }
-
-  private async processAudioMessage(conversationValues: ValueDto) {
-    const botPhoneNumberId = conversationValues.metadata.phone_number_id;
-    const customerPhoneNo = conversationValues.contacts[0].wa_id;
-    const customerName = conversationValues.contacts[0].profile.name;
-    const customerMessage = `${customerName}, I'm very sorry, I can't process audio messages yet. However, my creators are working hard on adding this functionality.`;
-
-    await this.sendWhatsAppMessage(
-      botPhoneNumberId,
-      customerPhoneNo,
-      customerMessage,
-    );
-  }
+  //   await this.sendWhatsAppMessage(
+  //     botPhoneNumberId,
+  //     customerPhoneNo,
+  //     customerMessage,
+  //   );
+  // }
 
   private isConversationExpired(conversation: ConversationDocument): boolean {
     //todo: puede existir mas de una conversacion 1 viva muchas muertas
