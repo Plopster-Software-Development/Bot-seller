@@ -3,15 +3,16 @@ import { AdministrationController } from './administration.controller';
 import { AdministrationService } from './administration.service';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { DatabaseModule, LoggerModule } from '@app/common';
-import { TenantsRepository } from './repository/tenants.repository';
+import { TenantsRepository } from './tenants/tenants.repository';
 import { TenantUsersRepository } from './repository/tenant-users.repository';
 import * as Joi from 'joi';
-import { TenantDocument, TenantSchema } from './models/tenant.schema';
+import { TenantDocument, TenantSchema } from './tenants/models/tenant.schema';
 import {
   TenantUsersDocument,
   TenantUsersSchema,
 } from './models/tenant-users.schema';
 import { JwtModule } from '@nestjs/jwt';
+import { TenantsModule } from './tenants/tenants.module';
 
 @Module({
   imports: [
@@ -37,6 +38,7 @@ import { JwtModule } from '@nestjs/jwt';
         secret: configService.get<string>('JWT_SECRET_APP'),
       }),
     }),
+    TenantsModule,
   ],
   controllers: [AdministrationController],
   providers: [AdministrationService, TenantsRepository, TenantUsersRepository],
