@@ -16,6 +16,8 @@ import {
   ConversationSchema,
 } from './models/conversation.schema';
 import { WhatsappService } from './services/whatsapp/whatsapp.service';
+import { PrismaService } from './services/prisma.service';
+import { PrismaClient } from '@prisma/client';
 
 @Module({
   imports: [
@@ -48,6 +50,8 @@ import { WhatsappService } from './services/whatsapp/whatsapp.service';
     ClientsRepository,
     ConversationsRepository,
     Logger,
+    PrismaService,
+    PrismaClient,
   ],
   exports: [ClientsRepository, ConversationsRepository],
 })

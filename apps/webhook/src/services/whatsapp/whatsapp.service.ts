@@ -11,40 +11,48 @@ import { Types } from 'mongoose';
 import { ConversationDocument } from '../../models/conversation.schema';
 import { TwilioMessageDto } from '../../dto/twilio-message.dto';
 import { Twilio } from 'twilio';
+import { PrismaClient } from '@prisma/client';
+import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { Readable } from 'stream';
+
+interface BotCredentials {
+  twilioSID: string;
+  twilioTK: string;
+  gCredsCloud: string;
+}
 
 @Injectable()
 export class WhatsappService {
-  private readonly dialogflowClient: any;
-  private readonly twilioClient: any;
+  private dialogflowClient: any;
+  private twilioClient: any;
+  private botCredentials: BotCredentials;
+  private client: S3Client;
+  private bucketName = this.configService.get('S3_BUCKET_NAME');
 
   constructor(
     private readonly configService: ConfigService,
     private readonly conversationRepository: ConversationsRepository,
     private readonly clientsRepository: ClientsRepository,
     private readonly logger: Logger,
+    private readonly prisma: PrismaClient,
   ) {
-    const credentialsPath = this.configService.get(
-      'GOOGLE_APPLICATION_CREDENTIALS',
-    );
-
-    this.dialogflowClient = new dialogflow.SessionsClient({
-      keyFilename: credentialsPath,
+    this.client = new S3Client({
+      region: this.configService.get('S3_REGION'),
+      credentials: {
+        accessKeyId: this.configService.get('S3_ACCESS_KEY'),
+        secretAccessKey: this.configService.get('S3_SECRET_ACCESS_KEY'),
+      },
+      forcePathStyle: true,
     });
-
-    //Existen varias credenciales de twilio dependiendo del proyecto, como gestioanrlo???
-    this.twilioClient = new Twilio(
-      this.configService.get<string>('TWILIO_ACCOUNT_SID'),
-      this.configService.get<string>('TWILIO_ACCOUNT_TOKEN'),
-    );
   }
 
   public async whatsappProcessMessage(webhookDto?: TwilioMessageDto) {
     try {
-      const customerPhoneNo = webhookDto.From.replace('whatsapp', '');
+      this.initializeKeys(webhookDto.To);
 
       const userId = await this.findOrCreateUser(
         webhookDto.ProfileName,
-        customerPhoneNo,
+        this.replaceParamsFromString(webhookDto.From, 'whatsapp', ''),
       );
 
       const conversationId = await this.findOrCreateConversation(
@@ -257,19 +265,6 @@ export class WhatsappService {
     }
   }
 
-  // private async processAudioMessage(conversationValues: ValueDto) {
-  //   const botPhoneNumberId = conversationValues.metadata.phone_number_id;
-  //   const customerPhoneNo = conversationValues.contacts[0].wa_id;
-  //   const customerName = conversationValues.contacts[0].profile.name;
-  //   const customerMessage = `${customerName}, I'm very sorry, I can't process audio messages yet. However, my creators are working hard on adding this functionality.`;
-
-  //   await this.sendWhatsAppMessage(
-  //     botPhoneNumberId,
-  //     customerPhoneNo,
-  //     customerMessage,
-  //   );
-  // }
-
   private isConversationExpired(conversation: ConversationDocument): boolean {
     //todo: puede existir mas de una conversacion 1 viva muchas muertas
 
@@ -292,5 +287,95 @@ export class WhatsappService {
     }
 
     return false;
+  }
+
+  private async fetchBotCredentials(
+    twilioPhoneNumber: string,
+  ): Promise<BotCredentials> {
+    try {
+      const credentials = await this.prisma.bot_credentials.findUnique({
+        where: {
+          twilioPhoneNumber: twilioPhoneNumber,
+        },
+        select: {
+          twilioSID: true,
+          twilioTK: true,
+          gCredsCloud: true,
+        },
+      });
+
+      return credentials;
+    } catch (error) {
+      throw error;
+    } finally {
+      // En aplicaciones de producción, considera mover el manejo de la conexión de Prisma a otro lugar
+      await this.prisma.$disconnect();
+    }
+  }
+
+  private async initializeKeys(twilioPhoneNumber: string) {
+    const botCredentials = await this.fetchBotCredentials(
+      this.replaceParamsFromString(twilioPhoneNumber, 'whatsapp', ''),
+    );
+
+    const bucketName = 'gcloudcredsbot';
+    const key = botCredentials.gCredsCloud.split(bucketName + '/')[1];
+
+    const gCloudCreds = await this.getJsonFileContent(key);
+
+    this.dialogflowClient = new dialogflow.SessionsClient({
+      credentials: gCloudCreds,
+    });
+
+    this.twilioClient = new Twilio(
+      botCredentials.twilioSID,
+      botCredentials.twilioTK,
+    );
+  }
+
+  private streamToPromise = (stream: Readable): Promise<Buffer> => {
+    return new Promise((resolve, reject) => {
+      const chunks: Buffer[] = [];
+      stream.on('data', (chunk) => chunks.push(chunk));
+      stream.on('end', () => resolve(Buffer.concat(chunks)));
+      stream.on('error', reject);
+    });
+  };
+
+  private async getJsonFileContent(key: string): Promise<any> {
+    try {
+      // Create the GetObjectCommand
+      const command = new GetObjectCommand({
+        Bucket: 'gcloudcredsbot', // Ensure this is the correct bucket name
+        Key: key,
+      });
+
+      // Send the command to S3
+      const response = await this.client.send(command);
+
+      // Check if response.Body is a Readable stream
+      if (response.Body instanceof Readable) {
+        // Convert the readable stream to a buffer
+        const buffer = await this.streamToPromise(response.Body);
+
+        // Convert the buffer to a string and parse it as JSON
+        const json = JSON.parse(buffer.toString('utf-8'));
+
+        return json;
+      } else {
+        throw new Error('Unexpected response body type');
+      }
+    } catch (error) {
+      console.error('Error getting JSON from S3:', error);
+      throw error;
+    }
+  }
+
+  private replaceParamsFromString(
+    value: string,
+    search: string,
+    replace: string,
+  ): string {
+    return value.replace(search, replace);
   }
 }
