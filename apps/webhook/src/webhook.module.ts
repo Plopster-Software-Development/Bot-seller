@@ -18,6 +18,7 @@ import {
 import { WhatsappService } from './services/whatsapp/whatsapp.service';
 import { PrismaService } from './services/prisma.service';
 import { PrismaClient } from '@prisma/client';
+import { DecryptService } from './services/decrypt.service';
 
 @Module({
   imports: [
@@ -52,8 +53,17 @@ import { PrismaClient } from '@prisma/client';
     Logger,
     PrismaService,
     PrismaClient,
+    {
+      provide: DecryptService,
+      useFactory: () => {
+        const keys = [
+          Buffer.from('QWJaRZaChs71JlyPHamjnxxOIuvwOmpmG5YtyH6Qw2c=', 'base64'),
+        ];
+        return new DecryptService(keys);
+      },
+    },
   ],
-  exports: [ClientsRepository, ConversationsRepository],
+  exports: [ClientsRepository, ConversationsRepository, DecryptService],
 })
 export class WebhookModule {
   configure(consumer: MiddlewareConsumer) {

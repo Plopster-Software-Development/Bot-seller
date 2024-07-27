@@ -14,11 +14,26 @@ import { Twilio } from 'twilio';
 import { PrismaClient } from '@prisma/client';
 import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { Readable } from 'stream';
+import { DecryptService } from '../decrypt.service';
 
 interface BotCredentials {
+  id: string;
   twilioSID: string;
   twilioTK: string;
   gCredsCloud: string;
+}
+
+interface JWTInput {
+  type?: string;
+  client_email?: string;
+  private_key?: string;
+  private_key_id?: string;
+  project_id?: string;
+  client_id?: string;
+  client_secret?: string;
+  refresh_token?: string;
+  quota_project_id?: string;
+  universe_domain?: string;
 }
 
 @Injectable()
@@ -35,6 +50,7 @@ export class WhatsappService {
     private readonly clientsRepository: ClientsRepository,
     private readonly logger: Logger,
     private readonly prisma: PrismaClient,
+    private readonly decryptService: DecryptService,
   ) {
     this.client = new S3Client({
       region: this.configService.get('S3_REGION'),
@@ -293,18 +309,17 @@ export class WhatsappService {
     twilioPhoneNumber: string,
   ): Promise<BotCredentials> {
     try {
-      const credentials = await this.prisma.bot_credentials.findUnique({
+      return await this.prisma.bot_credentials.findUnique({
         where: {
           twilioPhoneNumber: twilioPhoneNumber,
         },
         select: {
+          id: true,
           twilioSID: true,
           twilioTK: true,
           gCredsCloud: true,
         },
       });
-
-      return credentials;
     } catch (error) {
       throw error;
     } finally {
@@ -315,11 +330,10 @@ export class WhatsappService {
 
   private async initializeKeys(twilioPhoneNumber: string) {
     const botCredentials = await this.fetchBotCredentials(
-      this.replaceParamsFromString(twilioPhoneNumber, 'whatsapp', ''),
+      this.replaceParamsFromString(twilioPhoneNumber, 'whatsapp:', ''),
     );
 
-    const bucketName = 'gcloudcredsbot';
-    const key = botCredentials.gCredsCloud.split(bucketName + '/')[1];
+    const key = `google-cloud-credentials/${botCredentials.id}.json`;
 
     const gCloudCreds = await this.getJsonFileContent(key);
 
@@ -328,8 +342,8 @@ export class WhatsappService {
     });
 
     this.twilioClient = new Twilio(
-      botCredentials.twilioSID,
-      botCredentials.twilioTK,
+      this.decryptService.decrypt(botCredentials.twilioSID, false),
+      this.decryptService.decrypt(botCredentials.twilioTK, false),
     );
   }
 
@@ -342,7 +356,7 @@ export class WhatsappService {
     });
   };
 
-  private async getJsonFileContent(key: string): Promise<any> {
+  private async getJsonFileContent(key: string): Promise<JWTInput | any> {
     try {
       // Create the GetObjectCommand
       const command = new GetObjectCommand({
